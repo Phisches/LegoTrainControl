@@ -188,6 +188,7 @@ async def main():
         await asyncio.sleep_ms(1000)
     print("horn prep")
     #b = 0x00, 0x41, self.port, mode, 0x01, 0x00, 0x00, 0x00, 0x01
+    #https://github.com/virantha/bricknil/blob/master/bricknil/sensor/sound.py#L47
     await send_message_plus_length(my_characteristic, [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01])
     await asyncio.sleep_ms(1000)
     print("tut tut!")
@@ -195,7 +196,10 @@ async def main():
     for sound in [3, 5, 7, 9, 10]:
         await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, sound])
         await asyncio.sleep_ms(1500)
-    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 0x0a])
+    
+    
+    print("can we start the motor?")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
 
     
         
