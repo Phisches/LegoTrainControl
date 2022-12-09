@@ -11,14 +11,32 @@ import bluetooth
 import hubs
 import time
 
+#from https://github.com/virantha/bricknil/blob/a908b98938ee1028373186e31cb2d43c68f54b76/bricknil/const.py#L25
+class Color():
+    """11 colors"""
+    black = 0 
+    pink = 1
+    purple = 2
+    blue = 3
+    light_blue = 4
+    cyan = 5
+    green = 6
+    yellow = 7
+    orange = 8
+    red = 9
+    white = 10
+    none = 255
+
 class DuploTrainHub():
     """Duplo Steam train and Cargo Train
-       This is hub is found in Lego sets 10874 and 10875
+       This is hub is found in Lego sets 10874 and
     """
     
     connection = None
     service = None
     characteristic = None
+    
+    
     
     prep = bytearray([0x0a, 0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01])
     horn_send = bytearray([0x08, 0x00, 0x81, 0x01, 0x11, 0x51, 0x01, 0x09])
@@ -28,7 +46,46 @@ class DuploTrainHub():
     b = [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01]
     b2 = [0x08, 0x00, 0x81, 0x01, 0x11, 0x51, 0x01, 0x09]
     
+    # color is set in the last byte
     color = [0x00, 0x81, 0x11, 0x01, 0x51, 0x00, 0x05 ]
+    
+    def setColor(self, value):
+        """Value is from 0-11"""
+        
+        
+        output = self.set_output(0x11, 0x00, value)
+        self.color = output
+        return output
+        
+    def set_output(self, port, mode, value):
+        """Don't change this unless you're changing the way you do a Port Output command
+        
+           Outputs the following sequence to the sensor
+            * 0x00 = hub id from common header
+            * 0x81 = Port Output Command
+            * port
+            * 0x11 = Upper nibble (0=buffer, 1=immediate execution), Lower nibble (0=No ack, 1=command feedback)
+            * 0x51 = WriteDirectModeData
+            * mode
+            * value(s)
+        """
+        b = [0x00, 0x81, port, 0x01, 0x51, mode, value ]
+        return b
+    async def send_message_plus_length(self, characteristic, msg):
+        """Prepends a byte with the length of the msg and writes it to
+           the characteristic
+           Arguments:
+              characteristic : An object from bluefruit, or if using Bleak,
+                  a tuple (device, uuid : str)
+              msg (bytearray) : Message with header
+        """
+        # Message needs to have length prepended
+        length = len(msg)+1
+        values = bytearray([length]+msg)
+        
+        characteristic.write(values)
+        
+    
     
     def __init__(self, query_port_info=False, ble_id=None):
         
@@ -63,7 +120,7 @@ async def send_message_plus_length(characteristic, msg):
     await characteristic.write(values)
     
 async def send_message_no_length(characterstic, msg):
-    values = bytearray([msg])
+    values = bytearray(msg)
     await characterstic.write(values)
                 
 async def main():
@@ -121,11 +178,27 @@ async def main():
     
     res = await my_characteristic.write(horn_send)
     print(res)
-    await asyncio.sleep_ms(5000)
+    await asyncio.sleep_ms(2000)
+    print("Let's light up some colors on the train")
+    #for color in  [0x0a, 0x01, 0x02, 0x03, 0x04, 0x05]:
+    for color in [10, 1, 2, 3, 4, 5, 6, 7]:
+        print(color)
+        color_command = train.setColor(color)
+        await send_message_plus_length(my_characteristic, color_command)
+        await asyncio.sleep_ms(1000)
+    print("horn prep")
+    #b = 0x00, 0x41, self.port, mode, 0x01, 0x00, 0x00, 0x00, 0x01
+    await send_message_plus_length(my_characteristic, [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01])
+    await asyncio.sleep_ms(1000)
+    print("tut tut!")
+    #b = [0x00, 0x81, self.port, 0x01, 0x51, mode, value ] mode = 1; value = 3,5,7,9,10
+    for sound in [3, 5, 7, 9, 10]:
+        await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, sound])
+        await asyncio.sleep_ms(1500)
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 0x0a])
+
     
-    await send_message_plus_length(my_characteristic, train.color)
-    await asyncio.sleep_ms(4000)
-    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x11, 0x01, 0x51, 0x00, 0x0a])
+        
     
     #return my_characteristic
 train = DuploTrainHub()
