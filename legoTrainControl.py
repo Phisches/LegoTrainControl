@@ -198,8 +198,32 @@ async def main():
         await asyncio.sleep_ms(1500)
     
     
-    print("can we start the motor?")
+    print("can we start the motor? Speed 1 out of 3")
     await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
+    await asyncio.sleep_ms(1500)
+    print("Speed setting: 2 out of 3!")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
+    await asyncio.sleep_ms(1500)
+    print("Full speed! 3 out of 3")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
+    await asyncio.sleep_ms(1500)
+    print("Stop!")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
+    await asyncio.sleep_ms(1500)
+    print("Slow Reverse! -1 out of -3")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xe2])
+    await asyncio.sleep_ms(1500)
+    print("Medium Reverse! -2 out of -3")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xce])
+    await asyncio.sleep_ms(1500)
+    print("Medium Reverse! -3 out of -3")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x9c])
+    print("Stop!")
+    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
+    
+    
+    
+    
 
     
         
