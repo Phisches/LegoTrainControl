@@ -32,6 +32,15 @@ class Sound():
     prep = [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01]
     horn = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 9]
     
+class Button():
+    state = "pressed" #1 is pressed, 0 is depressed
+    pin = None #the pin of the esp
+    button_input = None
+    
+    def __init__(self, pin):
+        self.pin = pin
+        self.button_input = machine.Pin(pin, machine.Pin.IN, machine.Pin.PULL_UP)
+    
     
 
 class DuploTrainHub():
@@ -42,6 +51,8 @@ class DuploTrainHub():
     connection = None
     service = None
     characteristic = None
+    
+    motion = 0 # -2,-1,0,1,2
     
     
     
@@ -176,27 +187,43 @@ async def main():
     CLW_PIN = 14
     CCW_PIN = 12
     
-    clw_input = machine.Pin(CLW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    #clw_input = machine.Pin(CLW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    clw_button = Button(14)
     ccw_input = machine.Pin(CCW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    ccw_button = Button(12)
 
 
-    button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    #button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
+    horn_button = Button(4)
     await send_message_plus_length(my_characteristic, Sound.prep)
     while True:
-        print(button.value())
-        print("CLW Input %s" % clw_input.value())
-        print("CCW Input %s" % ccw_input.value())
+        print(horn_button.button_input.value())
+        print("CLW Input %s" % clw_button.button_input.value())
+        print("CCW Input %s" % ccw_button.button_input.value())
 
-        if button.value() == 0:
+        if horn_button.button_input.value() == 0:
             #await send_message_plus_length(my_characteristic, Sound.prep)
-            await send_message_plus_length(my_characteristic, Sound.prep)
-            await send_message_plus_length(my_characteristic, Sound.horn)
+            print("input = 0, the button state is %s" % horn_button.state)
+            if horn_button.state == "closed": # so the button was open previously
+                horn_button.state = "pressed"
+                print("I have set the button state to pressed? -> %s" % horn_button.state)
+                
             
-        if clw_input.value() == 0:
+                await send_message_plus_length(my_characteristic, Sound.prep)
+                await send_message_plus_length(my_characteristic, Sound.horn)
+
+            
+        if horn_button.button_input.value() == 1:
+            
+            horn_button.state = "closed"
+            print("the button state is %s" % horn_button.state)
+            
+            
+        if clw_button.button_input.value() == 0:
             print("can we start the motor? Speed 1 out of 3")
             await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
             
-        if ccw_input.value() == 0:
+        if ccw_button.button_input.value() == 0:
 
             print("Stop!")
             await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
