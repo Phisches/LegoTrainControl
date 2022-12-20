@@ -186,11 +186,13 @@ async def main():
     
     CLW_PIN = 14
     CCW_PIN = 12
+    POT_PIN = 32
     
     #clw_input = machine.Pin(CLW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
     clw_button = Button(14)
     ccw_input = machine.Pin(CCW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
     ccw_button = Button(12)
+    pot_button = Button(32)
 
 
     #button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -200,6 +202,8 @@ async def main():
         print(horn_button.button_input.value())
         print("CLW Input %s" % clw_button.button_input.value())
         print("CCW Input %s" % ccw_button.button_input.value())
+        print("Pot Input %s" % pot_button.button_input.value())
+
 
         if horn_button.button_input.value() == 0:
             #await send_message_plus_length(my_characteristic, Sound.prep)
