@@ -116,11 +116,14 @@ class DuploTrainHub():
 
 async def find_ble(train):
     print("starting async call to scan ble")
-    async with aioble.scan(5000, interval_us=30000, window_us=30000, active=True) as scanner:
-        async for result in scanner:
-            if (result.name()  != None) and (result.name().find("Train") != -1):
-                print(result, result.name(), result.rssi, result.services())
-                return result.device
+    try:
+        async with aioble.scan(5000, interval_us=30000, window_us=30000, active=True) as scanner:
+            async for result in scanner:
+                if (result.name()  != None) and (result.name().find("Train") != -1):
+                    print(result, result.name(), result.rssi, result.services())
+                    return result.device
+    except:
+        machine.reset()
             
 async def send_message_plus_length(characteristic, msg):
     """Prepends a byte with the length of the msg and writes it to
@@ -211,7 +214,9 @@ async def main():
     
     button_list = [horn_button, blue_button, yellow_button, red_button]
     print(button_list)
-    
+    if my_characteristic is None:
+        print("we didn't properly pair")
+        machine.reset()
     await send_message_plus_length(my_characteristic, Sound.prep)
     while True:
         #print(horn_button.button_input.value())
@@ -239,8 +244,9 @@ async def main():
         print(len(pressed_button_list))
         if len(pressed_button_list) == 1:
                 await send_message_plus_length(my_characteristic, Sound.prep)
-                await asyncio.sleep_ms(100)
-                await send_message_plus_length(my_characteristic, button.sound)
+                #await asyncio.sleep_ms(150)
+                print("I play the sound of button %s" % pressed_button_list[0].name)
+                await send_message_plus_length(my_characteristic, pressed_button_list[0].sound)
         if len(pressed_button_list) == 2:
             print("two buttons pressed. Changing direction from %s to" % train.direction)
             #two buttons pressed, let's change train direction
@@ -250,9 +256,12 @@ async def main():
             else:
                 train.direction = "forward"
                 print("forward")
+        if len(pressed_button_list) == 4:
+            print("Four buttons pressed... I restart")
+            machine.reset()
         pressed_button_list = []
             
-                    
+        await asyncio.sleep_ms(150)            
                 
             
             
@@ -274,7 +283,7 @@ async def main():
             if train.direction == "reverse":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xce])
             
-            await asyncio.sleep_ms(1500)
+            #await asyncio.sleep_ms(1500)
         if pot.read() >= 1300 and pot.read() < 1700:
             print("can we start the motor? Speed 1 out of 3")
             if train.direction == "forward":
@@ -293,7 +302,7 @@ async def main():
                 
            
             
-        await asyncio.sleep_ms(300)
+        await asyncio.sleep_ms(350)
 
             
             
