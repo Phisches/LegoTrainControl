@@ -37,13 +37,17 @@ class Sound():
     steam = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 10]
     
 class Button():
-    state = "pressed" #1 is pressed, 0 is depressed
-    pin = None #the pin of the esp
-    button_input = None
+    #state = "pressed" #1 is pressed, 0 is depressed
+    #pin = None #the pin of the esp
+    #button_input = None
+
     
-    def __init__(self, pin):
+    def __init__(self, pin, name, sound):
         self.pin = pin
         self.button_input = machine.Pin(pin, machine.Pin.IN, machine.Pin.PULL_UP)
+        self.state = "pressed"  #1 is pressed, 0 is depressed
+        self.name = name
+        self.sound = sound
     
     
 
@@ -56,17 +60,7 @@ class DuploTrainHub():
     service = None
     characteristic = None
     
-    motion = 0 # -2,-1,0,1,2
-    
-    
-    
-    prep = bytearray([0x0a, 0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01])
-    horn_send = bytearray([0x08, 0x00, 0x81, 0x01, 0x11, 0x51, 0x01, 0x09])
-    motor = bytearray([0x08, 0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
-    motor2 = bytearray([0x08, 0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
-    
-    b = [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01]
-    b2 = [0x08, 0x00, 0x81, 0x01, 0x11, 0x51, 0x01, 0x09]
+
     
     # color is set in the last byte
     color = [0x00, 0x81, 0x11, 0x01, 0x51, 0x00, 0x05 ]
@@ -117,6 +111,8 @@ class DuploTrainHub():
         self.uart_uuid = bluetooth.UUID('00001623-1212-efde-1623-785feabcd123')
         #self.char_uuid = uuid.UUID('00001624-1212-efde-1623-785feabcd123')
         self.char_uuid = bluetooth.UUID('00001624-1212-efde-1623-785feabcd123')
+        
+        self.direction = "forward"
 
 async def find_ble(train):
     print("starting async call to scan ble")
@@ -164,7 +160,10 @@ async def main():
     while my_characteristic == None and i < 10:
         try:
             print("Connecting to", device)
-            connection = await device.connect(timeout_ms=2000)
+            try:
+                connection = await device.connect(timeout_ms=2000)
+            except OSError:
+                machine.reset()
         except asyncio.TimeoutError:
             print("Timeout during connection")
             
@@ -191,92 +190,110 @@ async def main():
     
     #await send_message_plus_length(my_characteristic, train.b)
     
-    BUTTON_PIN = 4
+    WHITE_BUTTON_PIN = 4
     RED_BUTTON_PIN = 18
     BLUE_BUTTON_PIN = 19
     YELLOW_BUTTON_PIN = 21
     
-    CLW_PIN = 14
-    CCW_PIN = 12
+
     POT_PIN = 32
     
-    #clw_input = machine.Pin(CLW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
-    clw_button = Button(14)
-    ccw_input = machine.Pin(CCW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
-    ccw_button = Button(12)
+
     pot = machine.ADC(machine.Pin(POT_PIN))
     pot.atten(machine.ADC.ATTN_11DB)
 
 
     #button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
-    horn_button = Button(4)
-    blue_button = Button(BLUE_BUTTON_PIN)
-    yellow_button = Button(YELLOW_BUTTON_PIN)
-    red_button = Button(RED_BUTTON_PIN)
+    horn_button = Button(WHITE_BUTTON_PIN, "horn", Sound.horn)
+    blue_button = Button(BLUE_BUTTON_PIN, "water", Sound.water)
+    yellow_button = Button(YELLOW_BUTTON_PIN, "steam", Sound.steam)
+    red_button = Button(RED_BUTTON_PIN, "brake", Sound.brake)
+    
+    button_list = [horn_button, blue_button, yellow_button, red_button]
+    print(button_list)
+    
     await send_message_plus_length(my_characteristic, Sound.prep)
     while True:
-        print(horn_button.button_input.value())
-        print("CLW Input %s" % clw_button.button_input.value())
-        print("CCW Input %s" % ccw_button.button_input.value())
+        #print(horn_button.button_input.value())
+        #print("CLW Input %s" % clw_button.button_input.value())
+        #print("CCW Input %s" % ccw_button.button_input.value())
         print("Pot Input %s" % pot.read())
+        
+        pressed_button_list =[]
+        
+        for button in button_list:
+            
+            if button.button_input.value() == 0: #this means the button was pressed
+                print("input = 0, the button %s state is %s" % (button.name, button.state))
+                if button.state == "unpressed": # so the button was open previously, else someone else is still
+                                                # pressing the same button and we continue until the finger
+                                                # is lifted
+                    button.state = "pressed"
+                    print("I have set the button %s state to pressed? -> %s" % (button.name, button.state))
+                    pressed_button_list.append(button)
 
-
-        if horn_button.button_input.value() == 0:
-            #await send_message_plus_length(my_characteristic, Sound.prep)
-            print("input = 0, the button state is %s" % horn_button.state)
-            if horn_button.state == "closed": # so the button was open previously
-                horn_button.state = "pressed"
-                print("I have set the button state to pressed? -> %s" % horn_button.state)
+            if button.button_input.value() == 1:
+            
+                button.state = "unpressed"
+                print("the button state %s is %s" % (button.name, button.state))
+        print(len(pressed_button_list))
+        if len(pressed_button_list) == 1:
+                await send_message_plus_length(my_characteristic, Sound.prep)
+                await asyncio.sleep_ms(100)
+                await send_message_plus_length(my_characteristic, button.sound)
+        if len(pressed_button_list) == 2:
+            print("two buttons pressed. Changing direction from %s to" % train.direction)
+            #two buttons pressed, let's change train direction
+            if train.direction.find("forward") > -1:
+                train.direction = "reverse"
+                print("reverse")
+            else:
+                train.direction = "forward"
+                print("forward")
+        pressed_button_list = []
+            
+                    
                 
-            
-                await send_message_plus_length(my_characteristic, Sound.prep)
-                await send_message_plus_length(my_characteristic, Sound.horn)
-
-            
-        if horn_button.button_input.value() == 1:
-            
-            horn_button.state = "closed"
-            print("the button state is %s" % horn_button.state)
-            
-        if red_button.button_input.value()== 0:
-                await send_message_plus_length(my_characteristic, Sound.prep)
-                await send_message_plus_length(my_characteristic, Sound.brake)
-                
-        if blue_button.button_input.value()== 0:
-                await send_message_plus_length(my_characteristic, Sound.prep)
-                await send_message_plus_length(my_characteristic, Sound.water)
-                
-        if yellow_button.button_input.value()== 0:
-                await send_message_plus_length(my_characteristic, Sound.prep)
-                await send_message_plus_length(my_characteristic, Sound.steam)
             
             
         #max2377    
         if pot.read() >= 2000:
             print("Full setting: 3 out of 3!")
-    
-            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
+            if train.direction == "forward":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
+            if train.direction == "reverse":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x9c])
         
         #medium 1987
         if pot.read() >= 1700 and pot.read() < 2000:
 
             
             print("Speed setting: 2 out of 3!")
-            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
+            if train.direction == "forward":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
+            if train.direction == "reverse":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xce])
             
             await asyncio.sleep_ms(1500)
         if pot.read() >= 1300 and pot.read() < 1700:
             print("can we start the motor? Speed 1 out of 3")
-            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
+            if train.direction == "forward":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
+            if train.direction == "reverse":
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xe2])
         
         
         #min 1184
         if pot.read() < 1300:
             print("Stop!")
-            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
+            try:
+                await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
+            except TypeError:
+                machine.reset()
+                
            
             
-        await asyncio.sleep_ms(250)
+        await asyncio.sleep_ms(300)
 
             
             
