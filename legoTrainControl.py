@@ -31,6 +31,10 @@ class Color():
 class Sound():
     prep = [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01]
     horn = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 9]
+    water = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 7]
+    brake = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 3]
+    station = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 5]
+    steam = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 10]
     
 class Button():
     state = "pressed" #1 is pressed, 0 is depressed
@@ -142,10 +146,15 @@ async def send_message_no_length(characterstic, msg):
     await characterstic.write(values)
                 
 async def main():
-    device = await find_ble(train)
-    if not device:
-        print("no ble device found")
-        return
+    
+    device = None
+    while device is None:
+        #await aioble.cancel()
+        device = await find_ble(train)
+        if not device:
+            print("no ble device found")
+    #        print("press button to try again")
+    #    return
 
 
 
@@ -183,6 +192,9 @@ async def main():
     #await send_message_plus_length(my_characteristic, train.b)
     
     BUTTON_PIN = 4
+    RED_BUTTON_PIN = 18
+    BLUE_BUTTON_PIN = 19
+    YELLOW_BUTTON_PIN = 21
     
     CLW_PIN = 14
     CCW_PIN = 12
@@ -192,17 +204,21 @@ async def main():
     clw_button = Button(14)
     ccw_input = machine.Pin(CCW_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
     ccw_button = Button(12)
-    pot_button = Button(32)
+    pot = machine.ADC(machine.Pin(POT_PIN))
+    pot.atten(machine.ADC.ATTN_11DB)
 
 
     #button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
     horn_button = Button(4)
+    blue_button = Button(BLUE_BUTTON_PIN)
+    yellow_button = Button(YELLOW_BUTTON_PIN)
+    red_button = Button(RED_BUTTON_PIN)
     await send_message_plus_length(my_characteristic, Sound.prep)
     while True:
         print(horn_button.button_input.value())
         print("CLW Input %s" % clw_button.button_input.value())
         print("CCW Input %s" % ccw_button.button_input.value())
-        print("Pot Input %s" % pot_button.button_input.value())
+        print("Pot Input %s" % pot.read())
 
 
         if horn_button.button_input.value() == 0:
@@ -222,19 +238,45 @@ async def main():
             horn_button.state = "closed"
             print("the button state is %s" % horn_button.state)
             
+        if red_button.button_input.value()== 0:
+                await send_message_plus_length(my_characteristic, Sound.prep)
+                await send_message_plus_length(my_characteristic, Sound.brake)
+                
+        if blue_button.button_input.value()== 0:
+                await send_message_plus_length(my_characteristic, Sound.prep)
+                await send_message_plus_length(my_characteristic, Sound.water)
+                
+        if yellow_button.button_input.value()== 0:
+                await send_message_plus_length(my_characteristic, Sound.prep)
+                await send_message_plus_length(my_characteristic, Sound.steam)
             
-        if clw_button.button_input.value() == 0:
+            
+        #max2377    
+        if pot.read() >= 2000:
+            print("Full setting: 3 out of 3!")
+    
+            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
+        
+        #medium 1987
+        if pot.read() >= 1700 and pot.read() < 2000:
+
+            
+            print("Speed setting: 2 out of 3!")
+            await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
+            
+            await asyncio.sleep_ms(1500)
+        if pot.read() >= 1300 and pot.read() < 1700:
             print("can we start the motor? Speed 1 out of 3")
             await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
-            
-        if ccw_button.button_input.value() == 0:
-
+        
+        
+        #min 1184
+        if pot.read() < 1300:
             print("Stop!")
             await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
-            await asyncio.sleep_ms(1500)
            
             
-        await asyncio.sleep_ms(500)
+        await asyncio.sleep_ms(250)
 
             
             
@@ -254,4 +296,5 @@ async def main():
 train = DuploTrainHub()
 print(train)
 asyncio.run(main())
+sys.exit()
 
