@@ -37,6 +37,15 @@ class Sound():
     steam = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 10]
     
 class Button():
+    """Represents a button.
+    Instance variables are
+    @param pin: the GIO pin number of the button
+    @param button_input: the configured GIO pin
+    @param: state: 1 is pressed, 0 is depressed
+    @param: name: a descriptive name that can be used in debug logs etc
+    @param: sound that will be played
+    @param: action_list: a list of actions that will be performed
+    """
     #state = "pressed" #1 is pressed, 0 is depressed
     #pin = None #the pin of the esp
     #button_input = None
@@ -63,7 +72,7 @@ class DuploTrainHub():
 
     
     # color is set in the last byte
-    color = [0x00, 0x81, 0x11, 0x01, 0x51, 0x00, 0x05 ]
+    #color = [0x00, 0x81, 0x11, 0x01, 0x51, 0x00, 0x05 ]
     
     def setColor(self, value):
         """Value is from 0-11"""
@@ -107,11 +116,10 @@ class DuploTrainHub():
         
         self.ble_name = 'Train Base'
         self.manufacturer_id = 32
-        #self.uart_uuid = uuid.UUID('00001623-1212-efde-1623-785feabcd123')
         self.uart_uuid = bluetooth.UUID('00001623-1212-efde-1623-785feabcd123')
-        #self.char_uuid = uuid.UUID('00001624-1212-efde-1623-785feabcd123')
         self.char_uuid = bluetooth.UUID('00001624-1212-efde-1623-785feabcd123')
-        
+        self.color = Color.blue
+        self.speed = 0
         self.direction = "forward"
 
 async def find_ble(train):
@@ -176,7 +184,7 @@ async def main():
         try: 
             my_service = await connection.service(train.uart_uuid)
             print(my_service)
-        except:
+        except Exception():
             print("no shirt, no service!")
             continue
         train.service = my_service
@@ -219,9 +227,6 @@ async def main():
         machine.reset()
     await send_message_plus_length(my_characteristic, Sound.prep)
     while True:
-        #print(horn_button.button_input.value())
-        #print("CLW Input %s" % clw_button.button_input.value())
-        #print("CCW Input %s" % ccw_button.button_input.value())
         print("Pot Input %s" % pot.read())
         
         pressed_button_list =[]
@@ -256,18 +261,27 @@ async def main():
             else:
                 train.direction = "forward"
                 print("forward")
+            
+            await send_message_plus_length(train.characteristic, Color.purple)
+            await send_message_plus_length(my_characteristic, Sound.horn)
+
+            await asyncio.sleep_ms(600)
+            await send_message_plus_length(my_characteristic, train.color)
+
+            
         if len(pressed_button_list) == 4:
             print("Four buttons pressed... I restart")
             machine.reset()
         pressed_button_list = []
             
-        await asyncio.sleep_ms(150)            
-                
-            
-            
+        await asyncio.sleep_ms(150)
+    
         #max3140    
         if pot.read() >= 3000:
-            print("Full setting: 3 out of 3!")
+            if train.speed == 3:
+                continue
+            train.speed = 3
+            print(f"Full speed: {train.speed} out of 3!")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
             if train.direction == "reverse":
@@ -275,9 +289,11 @@ async def main():
         
         #medium 1987
         if pot.read() >= 2500 and pot.read() < 3000:
-
+            if train.speed == 2:
+                continue
+            train.speed = 2
+            print(f"Full speed: {train.speed} out of 3!")
             
-            print("Speed setting: 2 out of 3!")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
             if train.direction == "reverse":
@@ -285,6 +301,10 @@ async def main():
             
             #await asyncio.sleep_ms(1500)
         if pot.read() >= 1950 and pot.read() < 2500:
+            if train.speed == 1:
+                continue
+            train.speed = 1
+            print(f"Full speed: {train.speed} out of 3!")
             print("can we start the motor? Speed 1 out of 3")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
@@ -295,30 +315,18 @@ async def main():
         
         #min 1800
         if pot.read() < 1950:
+            if train.speed == 0:
+                continue
+            train.speed = 0
             print("Stop!")
             try:
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
             except TypeError:
                 machine.reset()
                 
-           
-            
+        #wait until we poll the pin states again  
         await asyncio.sleep_ms(350)
 
-            
-            
-
-        
-    
-    
-    
-    
-    
-    
-
-    
-        
-    
     #return my_characteristic
 train = DuploTrainHub()
 print(train)
