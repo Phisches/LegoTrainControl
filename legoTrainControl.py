@@ -28,13 +28,33 @@ class Color():
     white = 10
     none = 255
     
+    @staticmethod
+    def getBytesForColor(colorValue):
+        port = 0x11
+        mode = 0x00
+        b = [0x00, 0x81, port, 0x01, 0x51, mode, colorValue]
+        return b
+    
 class Sound():
     prep = [0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01]
-    horn = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 9]
-    water = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 7]
+    sound2 = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 2] 
     brake = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 3]
+    sound4 = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 4]
     station = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 5]
+    sound6 = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 6]
+    water = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 7]
+    sound8 = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 8]
+    horn = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 9]
     steam = [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, 10]
+  
+class Action():
+    def __init__(self, the_bytes, pre_timer, post_timer):
+        self.the_bytes = the_bytes
+        self.pre_timer = pre_timer
+        self.post_timer = post_timer
+        
+    def get_action():
+        return self.the_bytes, self.pre_timer, self.post_timer
     
 class Button():
     """Represents a button.
@@ -49,6 +69,9 @@ class Button():
     #state = "pressed" #1 is pressed, 0 is depressed
     #pin = None #the pin of the esp
     #button_input = None
+    
+    def add_action(self, action):
+        self.action_list.append(action)
 
     
     def __init__(self, pin, name, sound):
@@ -57,6 +80,7 @@ class Button():
         self.state = "pressed"  #1 is pressed, 0 is depressed
         self.name = name
         self.sound = sound
+        self.action_list = []
     
     
 
@@ -118,7 +142,8 @@ class DuploTrainHub():
         self.manufacturer_id = 32
         self.uart_uuid = bluetooth.UUID('00001623-1212-efde-1623-785feabcd123')
         self.char_uuid = bluetooth.UUID('00001624-1212-efde-1623-785feabcd123')
-        self.color = Color.blue
+        self.color = Color.getBytesForColor(Color.blue)
+        self.light = True
         self.speed = 0
         self.direction = "forward"
 
@@ -215,12 +240,13 @@ async def main():
 
 
     #button = machine.Pin(BUTTON_PIN, machine.Pin.IN, machine.Pin.PULL_UP)
-    horn_button = Button(WHITE_BUTTON_PIN, "horn", Sound.horn)
+    white_button = Button(WHITE_BUTTON_PIN, "light", Sound.steam)
+    white_button.add_action(Action(Color.getBytesForColor(Color.white), 100, 100))
     blue_button = Button(BLUE_BUTTON_PIN, "water", Sound.water)
-    yellow_button = Button(YELLOW_BUTTON_PIN, "steam", Sound.steam)
+    yellow_button = Button(YELLOW_BUTTON_PIN, "horn", Sound.horn)
     red_button = Button(RED_BUTTON_PIN, "brake", Sound.brake)
     
-    button_list = [horn_button, blue_button, yellow_button, red_button]
+    button_list = [white_button, blue_button, yellow_button, red_button]
     print(button_list)
     if my_characteristic is None:
         print("we didn't properly pair")
@@ -252,6 +278,21 @@ async def main():
                 #await asyncio.sleep_ms(150)
                 print("I play the sound of button %s" % pressed_button_list[0].name)
                 await send_message_plus_length(my_characteristic, pressed_button_list[0].sound)
+                
+                if pressed_button_list[0].name == "light":
+                    print("check the lights...")
+                    if train.light == True:
+                        print("turn off lights")
+                        await send_message_plus_length(train.characteristic, Color.getBytesForColor(Color.black))
+                        train.light = False
+                    elif train.light == False:
+                        print("turn on lights")
+                        await send_message_plus_length(my_characteristic, train.color)
+                        #await send_message_plus_length(train.characteristic, Color.getBytesForColor(Color.white))
+                        train.light = True
+                        
+                    
+                        
         if len(pressed_button_list) == 2:
             print("two buttons pressed. Changing direction from %s to" % train.direction)
             #two buttons pressed, let's change train direction
@@ -262,8 +303,22 @@ async def main():
                 train.direction = "forward"
                 print("forward")
             
-            await send_message_plus_length(train.characteristic, Color.purple)
-            await send_message_plus_length(my_characteristic, Sound.horn)
+            await send_message_plus_length(train.characteristic, Color.getBytesForColor(Color.purple))
+            await asyncio.sleep_ms(200)
+            await send_message_plus_length(my_characteristic, Sound.prep)
+            await asyncio.sleep_ms(250)
+            #for sound_int in range(2,13):
+            #    await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x01, 0x01, 0x51, 0x01, sound_int])
+            #    print(sound_int)
+            #    time.sleep(3)
+            await send_message_plus_length(my_characteristic, Sound.brake)
+            await asyncio.sleep_ms(2000)
+            
+            await send_message_plus_length(my_characteristic, Sound.prep)
+            await asyncio.sleep_ms(250)
+            await send_message_plus_length(my_characteristic, Sound.steam)
+               
+        
 
             await asyncio.sleep_ms(600)
             await send_message_plus_length(my_characteristic, train.color)
@@ -274,25 +329,28 @@ async def main():
             machine.reset()
         pressed_button_list = []
             
-        await asyncio.sleep_ms(150)
+        await asyncio.sleep_ms(200)
     
-        #max3140    
-        if pot.read() >= 3000:
-            if train.speed == 3:
-                continue
-            train.speed = 3
-            print(f"Full speed: {train.speed} out of 3!")
+        #max1280    
+        if pot.read() >= 700:
+            #if train.speed == 3:
+            #    continue
+            if train.speed != 3:
+                train.speed = 3
+                print(f"Full speed: {train.speed} out of 3!")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
             if train.direction == "reverse":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x9c])
         
         #medium 1987
-        if pot.read() >= 2500 and pot.read() < 3000:
-            if train.speed == 2:
-                continue
-            train.speed = 2
-            print(f"Full speed: {train.speed} out of 3!")
+        if pot.read() >= 400 and pot.read() < 700:
+            #if train.speed == 2:
+            #    continue
+            if train.speed != 2:
+                train.speed = 2
+                print(f"Full speed: {train.speed} out of 3!")
+            
             
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x32])
@@ -300,12 +358,13 @@ async def main():
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xce])
             
             #await asyncio.sleep_ms(1500)
-        if pot.read() >= 1950 and pot.read() < 2500:
-            if train.speed == 1:
-                continue
-            train.speed = 1
-            print(f"Full speed: {train.speed} out of 3!")
-            print("can we start the motor? Speed 1 out of 3")
+        if pot.read() >= 100 and pot.read() < 400:
+            if train.speed != 1:
+                train.speed = 1
+                print(f"Full speed: {train.speed} out of 3!")
+                
+            #    continue
+            
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
             if train.direction == "reverse":
@@ -313,8 +372,8 @@ async def main():
         
         
         
-        #min 1800
-        if pot.read() < 1950:
+        #min 70
+        if pot.read() < 100:
             if train.speed == 0:
                 continue
             train.speed = 0
