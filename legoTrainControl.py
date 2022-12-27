@@ -265,8 +265,8 @@ async def main():
                 
             
             
-        #max2377    
-        if pot.read() >= 2000:
+        #max3140    
+        if pot.read() >= 3000:
             print("Full setting: 3 out of 3!")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x64])
@@ -274,7 +274,7 @@ async def main():
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x9c])
         
         #medium 1987
-        if pot.read() >= 1700 and pot.read() < 2000:
+        if pot.read() >= 2500 and pot.read() < 3000:
 
             
             print("Speed setting: 2 out of 3!")
@@ -284,7 +284,7 @@ async def main():
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xce])
             
             #await asyncio.sleep_ms(1500)
-        if pot.read() >= 1300 and pot.read() < 1700:
+        if pot.read() >= 1950 and pot.read() < 2500:
             print("can we start the motor? Speed 1 out of 3")
             if train.direction == "forward":
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x1e])
@@ -292,8 +292,9 @@ async def main():
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0xe2])
         
         
-        #min 1184
-        if pot.read() < 1300:
+        
+        #min 1800
+        if pot.read() < 1950:
             print("Stop!")
             try:
                 await send_message_plus_length(my_characteristic, [0x00, 0x81, 0x00, 0x01, 0x51, 0x00, 0x00])
